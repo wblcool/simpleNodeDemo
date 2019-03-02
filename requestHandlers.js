@@ -1,18 +1,19 @@
 var exec = require("child_process").exec,
     querystring = require("querystring"),
+    formidable = require("formidable"),
     fs = require("fs");
 
 
-function start(response, postData){
+function start(response){
 
     var body = `<html>
                     <head>
                     <meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/>
                     </head> 
                     <body>
-                        <form action="/upload" method="post">
-                            <textarea name="text" rows="20" cols="60"></textarea>
-                            <input type="submit" value="Submit"/>
+                        <form action="/upload" method="post" enctype="multipart/form-data">
+                            <input type="file" name="upload" multiple="multiple"/>
+                            <input type="submit" value="Upload file" />
                         </form>
                     </body>    
                 </html>`;
@@ -28,15 +29,38 @@ function start(response, postData){
     console.log("Request handler 'start' was called.");
 }
 
-function upload(response, postData){
+function upload(response, request){
 
     console.log("Request handler 'upload' was called.");
-    response.writeHead(200, {"Content-Type": "text/plain;charset=utf-8"});
-    response.write("You've sent: " + querystring.parse(postData).text);
-    response.end();
+
+    var form = new formidable.IncomingForm();
+    console.log("about to parse");
+
+    form.parse(request, function(error, fields, files){
+        console.log("parsing done");
+        console.log("\nfiles", files);
+        console.log(files.upload.path);
+
+        form.uploadDir='tmp';
+
+        //fs.renameSync(files.upload.path, "./tmp/test.png");
+        var readStream=fs.createReadStream(files.upload.path);
+        var writeStream=fs.createWriteStream("./tmp/test.png");
+        readStream.pipe(writeStream);
+        readStream.on('end',function(){
+             fs.unlinkSync(files.upload.path);
+        });
+       
+        response.writeHead(200, {"Content-Type": "text/html"});
+        response.write("Received image:<br/>");
+        response.write("<img src='/show' />");
+        response.end();
+    })
+
+   
 }
 
-function show(response, postData){
+function show(response){
     console.log("Request handler 'show' was called");
     fs.readFile("./tmp/test.png", "binary", function(error, file){
         if(error){
